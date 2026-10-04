@@ -1,0 +1,7 @@
+fastapi
+faiss-cpu
+httpx
+langgraph
+numpy
+python-dotenv
+uvicorn[standard]

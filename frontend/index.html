@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Ein kleiner Demo-Chatbot mit FastAPI und Vite."
+    />
+    <title>Demo Chatbot</title>
+  </head>
+  <body>
+    <main class="chat-card">
+      <header class="chat-header">
+        <div class="bot-avatar" aria-hidden="true">S</div>
+        <div>
+          <h1>SBK Chat</h1>
+          <p><span class="status-dot"></span> Demo-Chatbot ist online</p>
+        </div>
+        <button id="clear-session" class="clear-session-button" type="button">
+          Sitzung löschen
+        </button>
+      </header>
+
+      <section
+        id="messages"
+        class="messages"
+        aria-label="Chatverlauf"
+        aria-live="polite"
+      >
+        <article class="message bot-message">
+          <p>Hallo! 👋 Ich bin dein SBK-Chatbot. Wie kann ich dir helfen?</p>
+          <time>Jetzt</time>
+        </article>
+      </section>
+
+      <form id="chat-form" class="chat-form">
+        <label class="sr-only" for="message-input">Deine Nachricht</label>
+        <input
+          id="message-input"
+          name="message"
+          type="text"
+          placeholder="Schreib eine Nachricht ..."
+          maxlength="1000"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Senden <span aria-hidden="true">➜</span></button>
+      </form>
+      <p id="error-message" class="error-message" role="alert"></p>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+Sucht zuerst in den LLM-generierten Keywords der Markdown-Anlagen der
+Musterkasse. Gibt es keinen passenden Keyword-Treffer, sucht das Werkzeug
+semantisch in den vollständigen Dokument-Chunks. Gibt passende Dokumente samt
+Suchmodus, Dateiname, Dokument-ID, Kurzfassung, Keywords und Inhalt zurück.

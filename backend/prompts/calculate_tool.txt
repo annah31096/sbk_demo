@@ -1,0 +1,3 @@
+Führt eine sichere Rechnung mit Grundrechenarten aus. Prozentangaben werden
+unterstützt, insbesondere die Form „15 % von 200“. Übergib im Feld expression
+den Rechenausdruck oder die natürliche Formulierung der Rechnung.

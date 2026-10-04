@@ -1,0 +1,1409 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Architektur und Ablauf eines lokalen LangGraph-Chatbots."
+    />
+    <title>Chatbot — Agentenarchitektur</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --navy: #003b6d;
+        --blue: #0c5a91;
+        --cyan: #baf6ff;
+        --pale: #f1fbfd;
+        --yellow: #ffd500;
+        --ink: #123a55;
+        --muted: #56758c;
+        --line: #a8c8d5;
+        --green: #13845b;
+        --red: #a74747;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        background: #eaf8fb;
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .deck {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: none;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: clamp(16px, 2.5vh, 28px);
+        padding: clamp(24px, 4vw, 64px) clamp(24px, 5vw, 80px)
+          clamp(16px, 2vw, 28px);
+        background:
+          radial-gradient(circle at 93% 5%, rgb(186 246 255 / 54%), transparent 25%),
+          linear-gradient(135deg, #fff 0%, #f6fdff 70%, #effbfe 100%);
+      }
+
+      .slide.active {
+        display: grid;
+        animation: enter 260ms ease-out both;
+      }
+
+      @keyframes enter {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .slide-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--blue);
+        font-size: clamp(11px, 1vw, 14px);
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2 {
+        margin-bottom: 0;
+        color: var(--navy);
+        letter-spacing: -0.04em;
+      }
+
+      h1 {
+        font-size: clamp(32px, 4.2vw, 62px);
+        line-height: 1.02;
+      }
+
+      h2 {
+        font-size: clamp(30px, 3.6vw, 52px);
+        line-height: 1.08;
+      }
+
+      .slide-number {
+        padding: 9px 13px;
+        border: 1px solid #c8e5ec;
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgb(255 255 255 / 75%);
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .subtitle {
+        max-width: 780px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: clamp(15px, 1.35vw, 19px);
+        line-height: 1.45;
+      }
+
+      .slide-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding-right: 150px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--navy);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+
+      .brand-mark {
+        width: 11px;
+        height: 11px;
+        border-radius: 4px;
+        background: var(--yellow);
+        box-shadow: 5px 4px 0 var(--cyan);
+      }
+
+      .graph-wrap {
+        position: relative;
+        min-height: 0;
+        overflow: auto;
+        border: 1px solid #d5eaf0;
+        border-radius: 22px;
+        background: rgb(255 255 255 / 79%);
+        box-shadow: 0 18px 50px rgb(0 59 109 / 7%);
+      }
+
+      .agent-graph {
+        display: grid;
+        grid-template-columns: minmax(230px, 1fr) minmax(250px, 1.1fr) minmax(
+            220px,
+            1fr
+          );
+        grid-template-rows:
+          32px 8px 42px 8px 42px 8px 42px 8px 42px 8px 42px 8px 42px 8px
+          42px 8px 54px;
+        align-content: center;
+        align-items: stretch;
+        justify-items: stretch;
+        gap: 0 20px;
+        min-width: 900px;
+        min-height: 510px;
+        padding: 12px 30px;
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      .flow-node {
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 10px;
+        border: 1px solid #a8c8d5;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 5px 12px rgb(0 59 109 / 7%);
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        text-align: center;
+        transition:
+          transform 150ms ease,
+          box-shadow 150ms ease;
+      }
+
+      .flow-node:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgb(0 59 109 / 14%);
+      }
+
+      .flow-node:focus-visible {
+        outline: 3px solid var(--yellow);
+        outline-offset: 3px;
+      }
+
+      .flow-node strong {
+        color: var(--navy);
+        font-size: 13px;
+        line-height: 1.15;
+      }
+
+      .flow-node small {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.1;
+      }
+
+      .flow-node.primary {
+        border-color: var(--navy);
+        background: var(--navy);
+      }
+
+      .flow-node.primary strong,
+      .flow-node.primary small {
+        color: #fff;
+      }
+
+      .flow-node.tool {
+        border-color: #76b99f;
+        background: #f0fcf8;
+      }
+
+      .flow-node.tool strong {
+        color: #086746;
+      }
+
+      .flow-node.guard,
+      .branch-card {
+        border: 1px solid #d69b91;
+        background: #fff6f4;
+      }
+
+      .flow-node.guard strong,
+      .branch-card strong {
+        color: #873c38;
+      }
+
+      .flow-node.start {
+        grid-area: 1 / 2;
+      }
+
+      .flow-node.route {
+        grid-area: 3 / 2;
+      }
+
+      .flow-node.announce {
+        grid-area: 5 / 2;
+      }
+
+      .flow-node.run-tools {
+        grid-area: 7 / 2;
+      }
+
+      .flow-node.prepare {
+        grid-area: 9 / 2;
+      }
+
+      .flow-node.call {
+        grid-area: 11 / 2;
+      }
+
+      .flow-node.record {
+        grid-area: 13 / 2;
+      }
+
+      .flow-node.validate {
+        grid-area: 15 / 2;
+      }
+
+      .graph-arrow {
+        position: relative;
+        grid-column: 2;
+        justify-self: center;
+        width: 2px;
+        background: #6e9eb4;
+      }
+
+      .graph-arrow::after {
+        position: absolute;
+        bottom: -1px;
+        left: -4px;
+        width: 0;
+        height: 0;
+        border-top: 6px solid #6e9eb4;
+        border-right: 5px solid transparent;
+        border-left: 5px solid transparent;
+        content: "";
+      }
+
+      .arrow-1 { grid-row: 2; }
+      .arrow-2 { grid-row: 4; }
+      .arrow-3 { grid-row: 6; }
+      .arrow-4 { grid-row: 8; }
+      .arrow-5 { grid-row: 10; }
+      .arrow-6 { grid-row: 12; }
+      .arrow-7 { grid-row: 14; }
+      .arrow-8 { grid-row: 16; }
+
+      .branch-card {
+        position: relative;
+        z-index: 1;
+        align-self: center;
+        padding: 9px 12px;
+        border-radius: 12px;
+        box-shadow: 0 5px 12px rgb(0 59 109 / 5%);
+      }
+
+      .branch-card strong,
+      .branch-card span {
+        display: block;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .branch-card span {
+        margin-top: 3px;
+        color: var(--muted);
+      }
+
+      .guard-link {
+        display: inline;
+        padding: 0;
+        border: 0;
+        color: #873c38;
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        text-underline-offset: 2px;
+      }
+
+      .guard-link:focus-visible {
+        outline: 2px solid var(--yellow);
+        outline-offset: 2px;
+      }
+
+      .branch-card.left {
+        grid-column: 1;
+      }
+
+      .branch-card.left::after {
+        position: absolute;
+        top: 50%;
+        right: -22px;
+        width: 22px;
+        border-top: 2px solid var(--red);
+        content: "";
+      }
+
+      .branch-card.left::before {
+        position: absolute;
+        top: calc(50% - 4px);
+        right: -1px;
+        width: 0;
+        height: 0;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-right: 6px solid var(--red);
+        content: "";
+      }
+
+      .branch-card.right {
+        grid-column: 3;
+      }
+
+      .branch-card.right::after {
+        position: absolute;
+        top: 50%;
+        left: -22px;
+        width: 22px;
+        border-top: 2px solid var(--red);
+        content: "";
+      }
+
+      .branch-card.right::before {
+        position: absolute;
+        top: calc(50% - 4px);
+        left: -1px;
+        width: 0;
+        height: 0;
+        border-top: 5px solid transparent;
+        border-left: 6px solid var(--red);
+        border-bottom: 5px solid transparent;
+        content: "";
+      }
+
+      .branch-scope { grid-row: 3; }
+      .branch-tool { grid-row: 7; }
+      .branch-evidence { grid-row: 15; }
+
+      .loop-lane {
+        position: relative;
+        grid-area: 5 / 3 / 14 / 4;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 12px;
+        border: 2px dashed #13845b;
+        border-radius: 14px;
+        color: #086746;
+        background: #e9fbf3;
+        text-align: center;
+      }
+
+      .loop-lane::before {
+        position: absolute;
+        top: 20px;
+        left: -22px;
+        width: 22px;
+        border-top: 3px dashed #13845b;
+        content: "";
+      }
+
+      .loop-lane::after {
+        position: absolute;
+        top: 14px;
+        left: -3px;
+        width: 0;
+        height: 0;
+        border-top: 7px solid transparent;
+        border-right: 8px solid #13845b;
+        border-bottom: 7px solid transparent;
+        content: "";
+      }
+
+      .loop-entry {
+        position: absolute;
+        top: 90%;
+        left: -22px;
+        width: 22px;
+        border-top: 3px dashed #13845b;
+      }
+
+      .loop-lane strong {
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .loop-lane .loop-arrow {
+        font-size: 38px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .loop-lane small {
+        color: #38765f;
+        font-size: 10px;
+        line-height: 1.35;
+      }
+
+      .chat-output {
+        grid-area: 17 / 1 / 18 / 4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 7px 14px;
+        border: 2px solid var(--navy);
+        border-radius: 14px;
+        color: var(--navy);
+        background: #eaf6ff;
+        box-shadow: 0 6px 16px rgb(0 59 109 / 9%);
+        text-align: left;
+      }
+
+      .chat-output strong {
+        flex: 0 0 auto;
+        font-size: 14px;
+      }
+
+      .chat-output span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      .stream-badge {
+        display: inline-block;
+        margin-top: 3px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        color: #704a00;
+        background: #fff0bd;
+        font-size: 9px;
+        font-weight: 750;
+      }
+
+      .node-dialog {
+        width: min(560px, calc(100% - 32px));
+        padding: 0;
+        border: 1px solid #c8e5ec;
+        border-radius: 20px;
+        color: var(--ink);
+        background: #fff;
+        box-shadow: 0 24px 80px rgb(0 35 66 / 28%);
+      }
+
+      .node-dialog::backdrop {
+        background: rgb(0 33 58 / 50%);
+        backdrop-filter: blur(3px);
+      }
+
+      .node-dialog-content {
+        padding: 28px;
+      }
+
+      .node-dialog-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .node-dialog h2 {
+        margin: 0;
+        font-size: clamp(22px, 4vw, 30px);
+        overflow-wrap: anywhere;
+      }
+
+      .node-dialog p {
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      .node-dialog-close {
+        flex: 0 0 auto;
+        width: 38px;
+        height: 38px;
+        border: 1px solid #d5eaf0;
+        border-radius: 10px;
+        color: var(--navy);
+        background: var(--pale);
+        cursor: pointer;
+        font-size: 22px;
+      }
+
+      .node-note {
+        grid-column: 1 / -1;
+        margin: -4px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .legend {
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        display: flex;
+        gap: 18px;
+        padding: 10px 14px;
+        border: 1px solid #d5eaf0;
+        border-radius: 12px;
+        background: rgb(255 255 255 / 94%);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .legend i {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--navy);
+      }
+
+      .legend .tool-key {
+        background: var(--green);
+      }
+
+      .legend .guard-key {
+        background: var(--red);
+      }
+
+      .legend .interactive-key {
+        border: 1px solid var(--blue);
+        background: #fff;
+        box-shadow: inset 0 0 0 2px #d7eff9;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: clamp(14px, 2vw, 26px);
+        align-content: center;
+      }
+
+      .card {
+        min-height: 220px;
+        padding: clamp(20px, 2.5vw, 34px);
+        border: 1px solid #d5eaf0;
+        border-radius: 20px;
+        background: rgb(255 255 255 / 88%);
+        box-shadow: 0 14px 38px rgb(0 59 109 / 6%);
+      }
+
+      .card-index {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        margin-bottom: 24px;
+        place-items: center;
+        border-radius: 12px;
+        color: var(--navy);
+        background: var(--cyan);
+        font-weight: 850;
+      }
+
+      .card h3 {
+        margin-bottom: 10px;
+        color: var(--navy);
+        font-size: clamp(19px, 1.7vw, 24px);
+      }
+
+      .card p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: clamp(14px, 1.15vw, 17px);
+        line-height: 1.55;
+      }
+
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 14px;
+        align-content: center;
+      }
+
+      .pipeline-step {
+        position: relative;
+        display: flex;
+        min-height: 200px;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 22px 18px;
+        border: 1px solid #d5eaf0;
+        border-radius: 18px;
+        background: #fff;
+      }
+
+      .pipeline-step:not(:last-child)::after {
+        position: absolute;
+        top: 50%;
+        right: -17px;
+        z-index: 2;
+        color: var(--blue);
+        content: "→";
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .step-number {
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 850;
+        letter-spacing: 0.12em;
+      }
+
+      .pipeline-step h3 {
+        margin: 24px 0 8px;
+        color: var(--navy);
+        font-size: clamp(16px, 1.35vw, 20px);
+      }
+
+      .pipeline-step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .guardrail-layout {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: clamp(20px, 4vw, 56px);
+        align-content: center;
+        align-items: center;
+      }
+
+      .guardrail-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .guardrail {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 14px;
+        align-items: start;
+        padding: 18px 20px;
+        border: 1px solid #d5eaf0;
+        border-radius: 16px;
+        background: #fff;
+      }
+
+      .check {
+        display: grid;
+        width: 26px;
+        height: 26px;
+        place-items: center;
+        border-radius: 9px;
+        color: #086746;
+        background: #dff6ed;
+        font-weight: 900;
+      }
+
+      .guardrail strong {
+        display: block;
+        margin: 2px 0 5px;
+        color: var(--navy);
+        font-size: 16px;
+      }
+
+      .guardrail p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .quote-card {
+        padding: clamp(26px, 4vw, 50px);
+        border-radius: 24px;
+        color: #fff;
+        background: var(--navy);
+        box-shadow: 0 24px 50px rgb(0 59 109 / 20%);
+      }
+
+      .quote-card .quote-mark {
+        color: var(--yellow);
+        font-size: 64px;
+        font-weight: 900;
+        line-height: 0.7;
+      }
+
+      .quote-card blockquote {
+        margin: 22px 0;
+        font-size: clamp(20px, 2.2vw, 31px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
+      }
+
+      .quote-card p {
+        margin: 0;
+        color: #c5e5f1;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .controls {
+        position: fixed;
+        right: 22px;
+        bottom: 18px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px;
+        border: 1px solid #cfe4ea;
+        border-radius: 14px;
+        background: rgb(255 255 255 / 94%);
+        box-shadow: 0 8px 24px rgb(0 59 109 / 12%);
+      }
+
+      .controls button {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 0;
+        border-radius: 10px;
+        color: var(--navy);
+        background: transparent;
+        cursor: pointer;
+        font-size: 19px;
+      }
+
+      .controls button:hover:not(:disabled) {
+        background: var(--pale);
+      }
+
+      .controls button:disabled {
+        cursor: default;
+        opacity: 0.35;
+      }
+
+      .controls .counter {
+        min-width: 46px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-align: center;
+      }
+
+      .dots {
+        position: fixed;
+        bottom: 31px;
+        left: 50%;
+        z-index: 10;
+        display: flex;
+        gap: 8px;
+        transform: translateX(-50%);
+      }
+
+      .dots button {
+        width: 8px;
+        height: 8px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #b5d0da;
+        cursor: pointer;
+      }
+
+      .dots button[aria-current="true"] {
+        width: 24px;
+        background: var(--navy);
+      }
+
+      @media (max-width: 900px) {
+        .slide {
+          padding: 24px;
+        }
+
+        .graph-wrap {
+          overflow: auto;
+        }
+
+        .agent-graph {
+          width: 1100px;
+          min-width: 1100px;
+        }
+
+        .legend {
+          top: 8px;
+          right: 8px;
+        }
+
+        .content-grid {
+          grid-template-columns: 1fr;
+          overflow: auto;
+        }
+
+        .card {
+          min-height: auto;
+        }
+
+        .card-index {
+          margin-bottom: 14px;
+        }
+
+        .pipeline {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          overflow: auto;
+        }
+
+        .pipeline-step:nth-child(3)::after {
+          display: none;
+        }
+
+        .guardrail-layout {
+          grid-template-columns: 1fr;
+          overflow: auto;
+        }
+
+        .dots {
+          left: 22px;
+          transform: none;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .slide-header {
+          gap: 12px;
+        }
+
+        .slide-number {
+          padding: 7px 9px;
+          font-size: 11px;
+        }
+
+        .pipeline {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .pipeline-step {
+          min-height: 160px;
+        }
+
+        .pipeline-step::after {
+          display: none;
+        }
+
+        .legend {
+          top: 8px;
+          left: 24px;
+          right: auto;
+          gap: 10px;
+          font-size: 10px;
+        }
+
+        .slide-footer {
+          padding-right: 135px;
+        }
+      }
+
+      @media (max-height: 760px) and (min-width: 901px) {
+        .agent-graph {
+          grid-template-rows:
+            22px 4px 30px 4px 30px 4px 30px 4px 30px 4px 30px 4px 30px 4px
+            30px 4px 40px;
+          min-height: 342px;
+          padding: 4px 24px;
+        }
+
+        .flow-node strong {
+          font-size: 12px;
+        }
+
+        .flow-node small,
+        .branch-card span {
+          font-size: 9px;
+        }
+
+        .branch-card {
+          padding: 6px 9px;
+        }
+
+        .branch-card strong {
+          font-size: 10px;
+        }
+
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck" aria-label="Präsentation: Chatbot-Agentenarchitektur">
+      <section class="slide active" aria-labelledby="slide-title-1">
+        <header class="slide-header">
+          <div>
+            <p class="eyebrow">Lokaler KI-Chatbot</p>
+            <h1 id="slide-title-1">Der Agent als Graph</h1>
+            <p class="subtitle">
+              LangGraph steuert Routing, Tools, Quellenprüfung und Antwort —
+              mit sicheren Abzweigungen statt freier Sachantworten.
+            </p>
+          </div>
+          <span class="slide-number">01 / 04</span>
+        </header>
+
+        <div class="graph-wrap">
+          <div
+            class="agent-graph"
+            role="group"
+            aria-label="Ablauf des LangGraph-Agenten. Funktions-Nodes anklicken, um Details zu öffnen."
+          >
+            <div class="flow-node primary start"><strong>START</strong></div>
+            <div class="graph-arrow arrow-1" aria-hidden="true"></div>
+            <button class="flow-node route" type="button" data-node="route_request" aria-haspopup="dialog">
+              <strong>route_request</strong>
+              <small>Regeln + Chatverlauf</small>
+            </button>
+            <article class="branch-card left branch-scope">
+              <strong>Kein erlaubtes Thema</strong>
+              <span>
+                Guard-Antwort →
+                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
+                → Chat-Ausgabe
+              </span>
+            </article>
+            <div class="graph-arrow arrow-2" aria-hidden="true"></div>
+            <button class="flow-node announce" type="button" data-node="announce_tool" aria-haspopup="dialog">
+              <strong>announce_tool</strong>
+              <small>Tool-Aufruf protokollieren</small>
+            </button>
+            <div class="graph-arrow arrow-3" aria-hidden="true"></div>
+            <button class="flow-node tool run-tools" type="button" data-node="run_tools" aria-haspopup="dialog">
+              <strong>run_tools</strong>
+              <small>Rechner oder RAG-Suche</small>
+            </button>
+            <article class="branch-card left branch-tool">
+              <strong>Tool-Fehler / keine Quellen</strong>
+              <span>
+                Guard-Antwort →
+                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
+                → Chat-Ausgabe
+              </span>
+            </article>
+            <div class="graph-arrow arrow-4" aria-hidden="true"></div>
+            <button class="flow-node prepare" type="button" data-node="prepare_model_call" aria-haspopup="dialog">
+              <strong>prepare_model_call</strong>
+              <small>Prompt + Verlauf + Quellen</small>
+            </button>
+            <div class="graph-arrow arrow-5" aria-hidden="true"></div>
+            <button class="flow-node primary call" type="button" data-node="call_model" aria-haspopup="dialog">
+              <strong>call_model</strong>
+              <small>Ollama · streamt Text live ins Chatfenster</small>
+            </button>
+            <div class="graph-arrow arrow-6" aria-hidden="true"></div>
+            <button class="flow-node record" type="button" data-node="record_model_response" aria-haspopup="dialog">
+              <strong>record_model_response</strong>
+              <small>Textantwort oder Tool-Aufruf?</small>
+            </button>
+            <div class="loop-lane">
+              <span class="loop-entry" aria-hidden="true"></span>
+              <strong>LOOP · NUR BEI TOOL-CALL</strong>
+              <span class="loop-arrow" aria-hidden="true">↶</span>
+              <small>record_model_response<br />→ announce_tool<br />max. 3 Tool-Aufrufe</small>
+            </div>
+            <div class="graph-arrow arrow-7" aria-hidden="true"></div>
+            <button class="flow-node validate" type="button" data-node="validate_final" aria-haspopup="dialog">
+              <strong>validate_final</strong>
+              <small>Nach Stream: Tools + Quellen prüfen</small>
+            </button>
+            <article class="branch-card left branch-evidence">
+              <strong>Nachweis unzureichend</strong>
+              <span>
+                Guard-Antwort →
+                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
+                → Chat-Ausgabe
+              </span>
+            </article>
+            <div class="graph-arrow arrow-8" aria-hidden="true"></div>
+            <div class="chat-output">
+              <strong>Antwort im Chat</strong>
+              <span>
+                Text wird schon in <b>call_model</b> gestreamt. Nach
+                <b>validate_final</b> ersetzt das finale Event den Stream mit
+                der geprüften Antwort; bei fehlendem Nachweis ersetzt die
+                Guard-Antwort den Stream. Guard-Antworten kommen ebenfalls hier an.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend" aria-label="Legende">
+          <span><i></i>Agent-Schritt</span>
+          <span><i class="tool-key"></i>Tool</span>
+          <span><i class="guard-key"></i>Guard / Abbruch</span>
+          <span><i class="interactive-key"></i>Node anklicken</span>
+        </div>
+
+        <footer class="slide-footer">
+          <span class="brand"><i class="brand-mark"></i>CHATBOT · AGENTENARCHITEKTUR</span>
+          <span>LangGraph · Ollama · RAG</span>
+        </footer>
+      </section>
+
+      <section class="slide" aria-labelledby="slide-title-2">
+        <header class="slide-header">
+          <div>
+            <p class="eyebrow">02 · Steuerung</p>
+            <h2 id="slide-title-2">Eine Frage, ein sicherer Pfad</h2>
+            <p class="subtitle">
+              Das Routing entscheidet vor dem Sprachmodell, welche Fähigkeiten
+              freigegeben sind und welcher Nachweis benötigt wird.
+            </p>
+          </div>
+          <span class="slide-number">02 / 04</span>
+        </header>
+        <div class="content-grid">
+          <article class="card">
+            <span class="card-index">A</span>
+            <h3>Rechenfrage</h3>
+            <p>
+              Erkanntes Prozentrechnen geht direkt an <strong>calculate</strong>.
+              Der Rechner wertet Zahlen sicher aus und liefert das Ergebnis,
+              bevor das LLM es formuliert.
+            </p>
+          </article>
+          <article class="card">
+            <span class="card-index">B</span>
+            <h3>GKV-Frage</h3>
+            <p>
+              GKV-Bezüge und Anschlussfragen werden mit dem Gesprächsverlauf
+              angereichert und über <strong>search_knowledge_base</strong>
+              recherchiert.
+            </p>
+          </article>
+          <article class="card">
+            <span class="card-index">C</span>
+            <h3>Andere Themen</h3>
+            <p>
+              Nicht zugelassene Sachfragen enden mit einer festen Scope-Antwort.
+              Das LLM wird für diese Fragen nicht aufgerufen.
+            </p>
+          </article>
+        </div>
+        <footer class="slide-footer">
+          <span class="brand"><i class="brand-mark"></i>CHATBOT · ENTSCHEIDUNGSLOGIK</span>
+          <span>Regelbasierter Einstieg · kontrollierter LLM-Aufruf</span>
+        </footer>
+      </section>
+
+      <section class="slide" aria-labelledby="slide-title-3">
+        <header class="slide-header">
+          <div>
+            <p class="eyebrow">03 · Wissensbasis</p>
+            <h2 id="slide-title-3">Lokales RAG mit Quellen</h2>
+            <p class="subtitle">
+              Kleine Markdown-Anlagen werden lokal indiziert; Treffer bleiben
+              mit Inhalt und Dokumentmetadaten nachvollziehbar.
+            </p>
+          </div>
+          <span class="slide-number">03 / 04</span>
+        </header>
+        <div class="pipeline" aria-label="RAG-Pipeline">
+          <article class="pipeline-step">
+            <span class="step-number">01 · QUELLEN</span>
+            <div>
+              <h3>Markdown</h3>
+              <p>Anlagen mit Frontmatter und Dokument-ID</p>
+            </div>
+          </article>
+          <article class="pipeline-step">
+            <span class="step-number">02 · LADEN</span>
+            <div>
+              <h3>Dokumente</h3>
+              <p>Ein vollständiger Chunk je Datei</p>
+            </div>
+          </article>
+          <article class="pipeline-step">
+            <span class="step-number">03 · METADATEN</span>
+            <div>
+              <h3>Keywords</h3>
+              <p>Lokale Zusammenfassung, Begriffe und Dateiname</p>
+            </div>
+          </article>
+          <article class="pipeline-step">
+            <span class="step-number">04 · SUCHE</span>
+            <div>
+              <h3>Keyword → FAISS</h3>
+              <p>Semantik nur, wenn keine Keywords passen</p>
+            </div>
+          </article>
+          <article class="pipeline-step">
+            <span class="step-number">05 · BELEG</span>
+            <div>
+              <h3>Quellenprüfung</h3>
+              <p>Treffer müssen Dokumentmetadaten enthalten</p>
+            </div>
+          </article>
+          <article class="pipeline-step">
+            <span class="step-number">06 · ANTWORT</span>
+            <div>
+              <h3>Mit Quellen</h3>
+              <p>LLM erhält nur die gefundenen Anlagen als Sachgrundlage</p>
+            </div>
+          </article>
+        </div>
+        <footer class="slide-footer">
+          <span class="brand"><i class="brand-mark"></i>CHATBOT · RAG-PIPELINE</span>
+          <span>Ollama Embeddings · FAISS · JSON-Docstore</span>
+        </footer>
+      </section>
+
+      <section class="slide" aria-labelledby="slide-title-4">
+        <header class="slide-header">
+          <div>
+            <p class="eyebrow">04 · Human in the loop</p>
+            <h2 id="slide-title-4">Belegen, nachfragen, begrenzen</h2>
+            <p class="subtitle">
+              Der Agent soll Unsicherheit sichtbar machen, fehlende Angaben
+              klären und keine unbelegte Sachantwort ausgeben.
+            </p>
+          </div>
+          <span class="slide-number">04 / 04</span>
+        </header>
+        <div class="guardrail-layout">
+          <div class="guardrail-list">
+            <article class="guardrail">
+              <span class="check">✓</span>
+              <div>
+                <strong>Chatverlauf einbeziehen</strong>
+                <p>Rückfragen wie „und bei Kindern?“ behalten ihren ursprünglichen Bezug.</p>
+              </div>
+            </article>
+            <article class="guardrail">
+              <span class="check">✓</span>
+              <div>
+                <strong>Quellen vor Antworten prüfen</strong>
+                <p>GKV-Antworten benötigen erfolgreiche RAG-Treffer mit Quellenmetadaten.</p>
+              </div>
+            </article>
+            <article class="guardrail">
+              <span class="check">✓</span>
+              <div>
+                <strong>Fehlende Angaben klären</strong>
+                <p>Bei Unklarheit fragt der Agent gezielt nach, statt persönliche Umstände zu erraten.</p>
+              </div>
+            </article>
+            <article class="guardrail">
+              <span class="check">✓</span>
+              <div>
+                <strong>Session nachvollziehen</strong>
+                <p>Thinking, Tool-Ereignisse und finale Antworten landen in einem lokalen Session-Log.</p>
+              </div>
+            </article>
+          </div>
+          <aside class="quote-card">
+            <div class="quote-mark" aria-hidden="true">“</div>
+            <blockquote>
+              Keine Quelle oder kein erfolgreiches Tool? Dann keine erfundene
+              Sachantwort.
+            </blockquote>
+            <p>
+              Im Chat erscheinen nur Status, gestreamte finale Antwort und
+              gegebenenfalls eine verständliche Rückfrage.
+            </p>
+          </aside>
+        </div>
+        <footer class="slide-footer">
+          <span class="brand"><i class="brand-mark"></i>CHATBOT · VERTRAUENSREGELN</span>
+          <span>Lokale Verarbeitung · nachvollziehbare Quellen</span>
+        </footer>
+      </section>
+    </main>
+
+    <dialog class="node-dialog" id="node-dialog" aria-labelledby="node-dialog-title">
+      <div class="node-dialog-content">
+        <div class="node-dialog-header">
+          <div>
+            <p class="eyebrow" id="node-dialog-category">Graph-Node</p>
+            <h2 id="node-dialog-title"></h2>
+          </div>
+          <button class="node-dialog-close" type="button" aria-label="Details schließen">×</button>
+        </div>
+        <p id="node-dialog-description"></p>
+      </div>
+    </dialog>
+
+    <nav class="dots" aria-label="Folienauswahl">
+      <button type="button" aria-label="Folie 1" aria-current="true"></button>
+      <button type="button" aria-label="Folie 2" aria-current="false"></button>
+      <button type="button" aria-label="Folie 3" aria-current="false"></button>
+      <button type="button" aria-label="Folie 4" aria-current="false"></button>
+    </nav>
+    <nav class="controls" aria-label="Präsentationssteuerung">
+      <button id="previous" type="button" aria-label="Vorherige Folie">←</button>
+      <span class="counter" id="counter" aria-live="polite">1 / 4</span>
+      <button id="next" type="button" aria-label="Nächste Folie">→</button>
+    </nav>
+
+    <script>
+      const slides = [...document.querySelectorAll(".slide")];
+      const dots = [...document.querySelectorAll(".dots button")];
+      const counter = document.querySelector("#counter");
+      const previous = document.querySelector("#previous");
+      const next = document.querySelector("#next");
+      const nodeDialog = document.querySelector("#node-dialog");
+      const nodeDialogTitle = document.querySelector("#node-dialog-title");
+      const nodeDialogCategory = document.querySelector("#node-dialog-category");
+      const nodeDialogDescription = document.querySelector("#node-dialog-description");
+      const closeNodeDialog = document.querySelector(".node-dialog-close");
+      const nodeDetails = {
+        route_request: {
+          category: "Routing",
+          description:
+            "Prüft die aktuelle Nachricht zusammen mit dem Gesprächsverlauf. Prozentrechnungen werden an calculate geleitet; zugelassene GKV-Fragen an die RAG-Suche. Nicht zugelassene Themen erhalten eine feste Scope-Antwort und überspringen das Modell.",
+        },
+        announce_tool: {
+          category: "Tool-Aufruf",
+          description:
+            "Erzeugt ein internes Trace-Event mit Toolname, Argumenten und Anlass. Danach führt der Graph run_tools aus.",
+        },
+        run_tools: {
+          category: "Tool-Ausführung",
+          description:
+            "Führt calculate oder search_knowledge_base aus. Bei einem Tool-Fehler oder einer Suche ohne Quellen endet der Modellpfad und der Guard gibt eine sichere finale Antwort aus. Eine erste vage Frage kann mit gefundenen RAG-Treffern eine Rückfrage erhalten.",
+        },
+        prepare_model_call: {
+          category: "Modellvorbereitung",
+          description:
+            "Baut die Modellnachrichten aus System-Prompt, Tool-Auswahl, Gesprächsverlauf und bisherigen Tool-Ergebnissen. Nach einer RAG-Suche werden zusätzlich RAG-Regeln und die gefundenen Dokumente eingebunden.",
+        },
+        call_model: {
+          category: "Sprachmodell",
+          description:
+            "Ruft das lokale Ollama-Modell mit den erlaubten Tools auf. Antworttokens werden während der Generierung direkt an den Chat gestreamt – also bevor record_model_response und validate_final abgeschlossen sind.",
+        },
+        record_model_response: {
+          category: "Antwort-Routing",
+          description:
+            "Bricht bei leerer oder abgeschnittener Ausgabe ab. Wenn das Modell weitere Tools anfordert, geht der Graph zurück zu announce_tool. Bei normalem Antworttext geht es weiter zu validate_final.",
+        },
+        validate_final: {
+          category: "Quellen- und Tool-Prüfung",
+          description:
+            "Prüft nach dem Streaming, ob mindestens ein Tool erfolgreich war und ob jede Wissenssuche Quellen mit Dokumentmetadaten geliefert hat. Danach wird ein finales Event gesendet: Es ersetzt die gestreamte Antwort im Chat oder liefert bei fehlendem Nachweis die sichere Guard-Antwort.",
+        },
+        finalize_guarded_reply: {
+          category: "Sicherer Abschluss",
+          description:
+            "Beendet Scope-, Rückfrage- oder Tool-/Quellenfehler-Pfade mit der festgelegten finalen Antwort. Diese Guard-Antwort wird als finales Event im Chat angezeigt und nicht tokenweise gestreamt.",
+        },
+      };
+      let current = 0;
+
+      function showSlide(index) {
+        current = Math.max(0, Math.min(index, slides.length - 1));
+        slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle("active", slideIndex === current);
+          slide.setAttribute("aria-hidden", String(slideIndex !== current));
+        });
+        dots.forEach((dot, dotIndex) => {
+          dot.setAttribute("aria-current", String(dotIndex === current));
+        });
+        counter.textContent = `${current + 1} / ${slides.length}`;
+        previous.disabled = current === 0;
+        next.disabled = current === slides.length - 1;
+        history.replaceState(null, "", `#folie-${current + 1}`);
+      }
+
+      previous.addEventListener("click", () => showSlide(current - 1));
+      next.addEventListener("click", () => showSlide(current + 1));
+      dots.forEach((dot, index) =>
+        dot.addEventListener("click", () => showSlide(index)),
+      );
+      document.querySelectorAll("[data-node]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const detail = nodeDetails[node.dataset.node];
+          if (!detail) return;
+          nodeDialogTitle.textContent = node.dataset.node;
+          nodeDialogCategory.textContent = detail.category;
+          nodeDialogDescription.textContent = detail.description;
+          nodeDialog.showModal();
+        });
+      });
+      closeNodeDialog.addEventListener("click", () => nodeDialog.close());
+      nodeDialog.addEventListener("click", (event) => {
+        if (event.target === nodeDialog) nodeDialog.close();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" || event.key === "PageDown") {
+          showSlide(current + 1);
+        } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+          showSlide(current - 1);
+        } else if (event.key === "Home") {
+          showSlide(0);
+        } else if (event.key === "End") {
+          showSlide(slides.length - 1);
+        }
+      });
+
+      const requestedSlide = Number(location.hash.match(/folie-(\d+)/)?.[1]);
+      showSlide(Number.isInteger(requestedSlide) ? requestedSlide - 1 : 0);
+    </script>
+  </body>
+</html>
