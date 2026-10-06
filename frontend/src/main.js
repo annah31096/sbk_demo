@@ -9,7 +9,7 @@ const clearSessionButton = document.querySelector("#clear-session");
 const conversationHistory = [];
 const MAX_HISTORY_TURN_LENGTH = 4000;
 const WELCOME_MESSAGE =
-  "Hallo! 👋 Ich bin dein Krank Demo-Chatbot. Wie kann ich dir helfen?";
+  "Hallo! 👋 Ich bin dein SBK Demo-Chatbot. Wie kann ich dir helfen?";
 let sessionId = crypto.randomUUID();
 
 function addMessage(text, sender, { formatted = false } = {}) {
@@ -70,8 +70,6 @@ form.addEventListener("submit", async (event) => {
   errorMessage.textContent = "";
   addMessage(message, "user");
   const loading = createLoadingIndicator();
-  let streamedReply = null;
-  let streamedArticle = null;
   input.value = "";
   input.disabled = true;
   clearSessionButton.disabled = true;
@@ -112,21 +110,9 @@ form.addEventListener("submit", async (event) => {
         const agentEvent = JSON.parse(dataLine.slice(6));
         if (agentEvent.type === "status") {
           loading.label.textContent = agentEvent.message;
-        } else if (agentEvent.type === "answer_delta") {
-          if (!streamedReply) {
-            loading.article.remove();
-            streamedArticle = addMessage("", "bot");
-            streamedReply = streamedArticle.querySelector(".message-content");
-          }
-          streamedReply.textContent += agentEvent.text;
-          messages.scrollTop = messages.scrollHeight;
         } else if (agentEvent.type === "final") {
-          if (streamedReply) {
-            streamedReply.innerHTML = formatMessage(agentEvent.reply);
-          } else {
-            loading.article.remove();
-            addMessage(agentEvent.reply, "bot", { formatted: true });
-          }
+          loading.article.remove();
+          addMessage(agentEvent.reply, "bot", { formatted: true });
           conversationHistory.push(
             { role: "user", content: message },
             {
@@ -140,7 +126,6 @@ form.addEventListener("submit", async (event) => {
           replyAdded = true;
         } else if (agentEvent.type === "error") {
           loading.article.remove();
-          streamedArticle?.remove();
           errorMessage.textContent = agentEvent.message;
         }
       }
@@ -151,7 +136,6 @@ form.addEventListener("submit", async (event) => {
     }
   } catch (error) {
     loading.article.remove();
-    streamedArticle?.remove();
     errorMessage.textContent =
       error instanceof Error
         ? `${error.message} Läuft das Backend auf Port 8000?`

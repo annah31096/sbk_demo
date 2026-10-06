@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+from backend.config import DEFAULT_SESSION_LOG_DIRECTORY
+
 
 class SessionEventLogger:
     def __init__(self, log_directory: Path | None = None) -> None:
-        self._log_directory = log_directory or Path(__file__).with_name("logs")
+        self._log_directory = log_directory or DEFAULT_SESSION_LOG_DIRECTORY
         self._lock = threading.Lock()
 
     def log(

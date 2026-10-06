@@ -1,0 +1,4 @@
+Datei: $source
+Titel: $title
+
+$content

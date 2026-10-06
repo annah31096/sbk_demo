@@ -1,0 +1,8 @@
+Gefundene Quelle #$index
+[$dok_id: $title]
+Datei: $file_name
+Suchmodus: $retrieval_mode
+Zusammenfassung: $summary
+Keywords: $keywords
+INHALT:
+$content

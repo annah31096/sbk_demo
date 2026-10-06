@@ -1,4 +1,4 @@
-"""Tools available to the LangGraph chat agent."""
+"""Safe calculation tools available to the LangGraph chat agent."""
 
 import ast
 import math
@@ -51,6 +51,15 @@ def calculate(expression: str) -> str:
     normalized = re.sub(
         rf"({NUMBER[1:-1]})\s*%",
         r"(\1 / 100)",
+        normalized,
+    )
+    normalized = re.sub(
+        r"(?<![\w.])0*(\d+)(?:\.(\d+))?(?![\w.])",
+        lambda match: (
+            f"{match.group(1)}.{match.group(2)}"
+            if match.group(2)
+            else match.group(1)
+        ),
         normalized,
     )
     try:

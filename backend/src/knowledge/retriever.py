@@ -11,13 +11,20 @@ from typing import Any
 import faiss
 import numpy as np
 
-from backend.local_llm import LocalOllamaClient
-from backend.markdown_loader import MarkdownDocument, load_markdown_documents
+from backend.config import (
+    DEFAULT_RAG_INDEX_DIRECTORY,
+    DEFAULT_OLLAMA_TIMEOUT_SECONDS,
+    DEFAULT_RAG_EMBEDDING_BATCH_SIZE,
+    DEFAULT_RAG_KEYWORD_MAX_TOKENS,
+    DEFAULT_RAG_MINIMUM_SCORE,
+    DEFAULT_RAG_KEYWORD_TEMPERATURE,
+    DEFAULT_RAG_TOP_K,
+)
+from backend.src.knowledge.markdown import MarkdownDocument, load_markdown_documents
+from backend.src.llm.ollama import LocalOllamaClient
+from backend.src.prompts.loader import load_prompt
 
-PROMPTS_DIR = Path(__file__).with_name("prompts")
-KEYWORD_PROMPT = (PROMPTS_DIR / "build_keywords.txt").read_text(
-    encoding="utf-8"
-).strip()
+KEYWORD_PROMPT = load_prompt("rag/build_keywords.txt")
 KEYWORD_SCHEMA_VERSION = 4
 KEYWORD_RESPONSE_SCHEMA = {
     "type": "object",
@@ -105,12 +112,26 @@ class MarkdownRetriever:
         *,
         ollama_host: str = "http://127.0.0.1:11434",
         keyword_model: str | None = None,
-        top_k: int = 4,
-        minimum_score: float = 0.7,
+        top_k: int = DEFAULT_RAG_TOP_K,
+        minimum_score: float = DEFAULT_RAG_MINIMUM_SCORE,
+        embedding_batch_size: int = DEFAULT_RAG_EMBEDDING_BATCH_SIZE,
+        keyword_max_tokens: int = DEFAULT_RAG_KEYWORD_MAX_TOKENS,
+        keyword_temperature: float = DEFAULT_RAG_KEYWORD_TEMPERATURE,
+        ollama_timeout: float = DEFAULT_OLLAMA_TIMEOUT_SECONDS,
         index_directory: Path | None = None,
         embedding_client: Any | None = None,
         keyword_client: Any | None = None,
     ) -> None:
+        if top_k < 1:
+            raise ValueError("top_k must be at least 1.")
+        if not 0 <= minimum_score <= 1:
+            raise ValueError("minimum_score must be between 0 and 1.")
+        if keyword_max_tokens < 1:
+            raise ValueError("keyword_max_tokens must be at least 1.")
+        if not 0 <= keyword_temperature <= 2:
+            raise ValueError("keyword_temperature must be between 0 and 2.")
+        if ollama_timeout <= 0:
+            raise ValueError("ollama_timeout must be positive.")
         self._embedding_model = embedding_model
         self._keyword_model = keyword_model or embedding_model
         self._ollama_host = ollama_host
@@ -120,17 +141,22 @@ class MarkdownRetriever:
         self._embedding_client = embedding_client or LocalOllamaClient(
             ollama_host,
             embedding_model,
+            timeout=ollama_timeout,
         )
         self._keyword_client = keyword_client or LocalOllamaClient(
             ollama_host,
             self._keyword_model,
+            timeout=ollama_timeout,
         )
         self._index: faiss.Index | None = None
         self._top_k = top_k
         self._minimum_score = minimum_score
-        self._index_directory = index_directory or Path(__file__).with_name(
-            ".rag_index"
-        )
+        if embedding_batch_size < 1:
+            raise ValueError("embedding_batch_size must be at least 1.")
+        self._embedding_batch_size = embedding_batch_size
+        self._keyword_max_tokens = keyword_max_tokens
+        self._keyword_temperature = keyword_temperature
+        self._index_directory = index_directory or DEFAULT_RAG_INDEX_DIRECTORY
         self._index_path = self._index_directory / "documents.faiss"
         self._index_metadata_path = self._index_directory / "index_meta.json"
         self._legacy_metadata_path = self._index_directory / "documents.json"
@@ -163,8 +189,8 @@ class MarkdownRetriever:
             self._embedding_text(document) for document in self._documents
         ]
         document_vectors = []
-        for start in range(0, len(document_texts), 8):
-            batch_end = min(start + 8, len(document_texts))
+        for start in range(0, len(document_texts), self._embedding_batch_size):
+            batch_end = min(start + self._embedding_batch_size, len(document_texts))
             logger.info(
                 "Embedding RAG documents %d-%d of %d.",
                 start + 1,
@@ -172,7 +198,9 @@ class MarkdownRetriever:
                 len(document_texts),
             )
             document_vectors.extend(
-                await self._embed(document_texts[start : start + 8])
+                await self._embed(
+                    document_texts[start : start + self._embedding_batch_size]
+                )
             )
         vectors = np.asarray(document_vectors, dtype=np.float32)
         index = faiss.IndexFlatIP(vectors.shape[1])
@@ -352,10 +380,11 @@ class MarkdownRetriever:
         document: MarkdownDocument,
     ) -> tuple[str, list[str]]:
         source = document.metadata["source"]
-        document_prompt = (
-            f"Datei: {source}\n"
-            f"Titel: {document.metadata['title']}\n\n"
-            f"{document.content}"
+        document_prompt = load_prompt(
+            "rag/rag_document.txt",
+            source=source,
+            title=document.metadata["title"],
+            content=document.content,
         )
         last_error: ValueError | None = None
         for attempt in range(1, 4):
@@ -367,12 +396,7 @@ class MarkdownRetriever:
                 messages.append(
                     {
                         "role": "user",
-                        "content": (
-                            "Deine vorige Antwort war kein gültiges JSON mit "
-                            "einem nicht-leeren summary-Text und einer nicht-leeren "
-                            "keywords-Liste. Antworte jetzt ausschließlich mit "
-                            "einem gültigen JSON-Objekt gemäß dem vorgegebenen Schema."
-                        ),
+                        "content": load_prompt("rag/rag_keywords_retry.txt"),
                     }
                 )
             logger.info(
@@ -383,8 +407,8 @@ class MarkdownRetriever:
             response = await self._keyword_client.chat_completion(
                 model=self._keyword_model,
                 messages=messages,
-                max_tokens=512,
-                temperature=0.1,
+                max_tokens=self._keyword_max_tokens,
+                temperature=self._keyword_temperature,
                 response_format=KEYWORD_RESPONSE_SCHEMA,
             )
             if not response.choices:

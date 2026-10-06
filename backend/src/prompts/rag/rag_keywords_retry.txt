@@ -1,0 +1,3 @@
+Deine vorige Antwort war kein gültiges JSON mit einem nicht-leeren
+summary-Text und einer nicht-leeren keywords-Liste. Antworte jetzt
+ausschließlich mit einem gültigen JSON-Objekt gemäß dem vorgegebenen Schema.

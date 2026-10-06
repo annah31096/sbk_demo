@@ -170,12 +170,21 @@
 
       .graph-wrap {
         position: relative;
+        display: grid;
+        place-items: center;
         min-height: 0;
-        overflow: auto;
+        overflow: hidden;
         border: 1px solid #d5eaf0;
         border-radius: 22px;
         background: rgb(255 255 255 / 79%);
         box-shadow: 0 18px 50px rgb(0 59 109 / 7%);
+      }
+
+      .agent-flowchart {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .agent-graph {
@@ -323,6 +332,128 @@
         border-left: 5px solid transparent;
         content: "";
       }
+
+      .workflow-diagram {
+        position: relative;
+        width: 100%;
+        max-height: 440px;
+        min-height: 300px;
+        aspect-ratio: 2.3 / 1;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 50% 45%, rgb(29 155 189 / 5%), transparent 60%);
+      }
+
+      .workflow-edges {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .workflow-edge {
+        fill: none;
+        stroke: #6e9eb4;
+        stroke-width: 3;
+        marker-end: url("#workflow-arrow");
+      }
+
+      .workflow-edge.loop {
+        stroke: #27836b;
+        stroke-dasharray: 8 6;
+        marker-end: url("#workflow-loop-arrow");
+      }
+
+      .workflow-pool {
+        position: absolute;
+        top: 51%;
+        left: 17%;
+        width: 66%;
+        height: 22%;
+        border: 2px dashed #91b9aa;
+        border-radius: 20px;
+        background: rgb(240 252 248 / 65%);
+      }
+
+      .workflow-pool-label {
+        position: absolute;
+        top: 52%;
+        left: 50%;
+        padding: 0 12px;
+        color: #086746;
+        background: #f4fcf9;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+        transform: translate(-50%, -50%);
+      }
+
+      .workflow-node {
+        position: absolute;
+        z-index: 1;
+        display: flex;
+        width: clamp(130px, 19vw, 220px);
+        min-height: 54px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border: 1px solid #a8c8d5;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 5px 12px rgb(0 59 109 / 9%);
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        text-align: center;
+        transform: translate(-50%, -50%);
+      }
+
+      .workflow-node strong {
+        color: var(--navy);
+        font-size: 13px;
+      }
+
+      .workflow-node small {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .workflow-node.primary {
+        border-color: var(--navy);
+        background: var(--navy);
+      }
+
+      .workflow-node.primary strong,
+      .workflow-node.primary small {
+        color: #fff;
+      }
+
+      .workflow-node.tool {
+        width: clamp(120px, 16vw, 185px);
+        border-color: #76b99f;
+        background: #f0fcf8;
+      }
+
+      .workflow-node.tool strong {
+        color: #086746;
+      }
+
+      .workflow-node.terminal {
+        width: 110px;
+        min-height: 36px;
+        border-radius: 999px;
+      }
+
+      .workflow-start { left: 50%; top: 7%; }
+      .workflow-plan { left: 50%; top: 23%; }
+      .workflow-execute { left: 50%; top: 43%; }
+      .workflow-search { left: 36%; top: 63%; }
+      .workflow-calculate { left: 64%; top: 63%; }
+      .workflow-finalize { left: 50%; top: 80%; }
+      .workflow-end { left: 50%; top: 94%; }
 
       .arrow-1 { grid-row: 2; }
       .arrow-2 { grid-row: 4; }
@@ -615,6 +746,10 @@
 
       .legend .tool-key {
         background: var(--green);
+      }
+
+      .legend .loop-key {
+        background: #27836b;
       }
 
       .legend .guard-key {
@@ -1001,103 +1136,19 @@
             <p class="eyebrow">Lokaler KI-Chatbot</p>
             <h1 id="slide-title-1">Der Agent als Graph</h1>
             <p class="subtitle">
-              LangGraph steuert Routing, Tools, Quellenprüfung und Antwort —
-              mit sicheren Abzweigungen statt freier Sachantworten.
+              LangGraph plant die benötigten Schritte, führt Suche und Rechnung
+              aus und erstellt anschließend die finale Antwort.
             </p>
           </div>
           <span class="slide-number">01 / 04</span>
         </header>
 
         <div class="graph-wrap">
-          <div
-            class="agent-graph"
-            role="group"
-            aria-label="Ablauf des LangGraph-Agenten. Funktions-Nodes anklicken, um Details zu öffnen."
-          >
-            <div class="flow-node primary start"><strong>START</strong></div>
-            <div class="graph-arrow arrow-1" aria-hidden="true"></div>
-            <button class="flow-node route" type="button" data-node="route_request" aria-haspopup="dialog">
-              <strong>route_request</strong>
-              <small>Regeln + Chatverlauf</small>
-            </button>
-            <article class="branch-card left branch-scope">
-              <strong>Kein erlaubtes Thema</strong>
-              <span>
-                Guard-Antwort →
-                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
-                → Chat-Ausgabe
-              </span>
-            </article>
-            <div class="graph-arrow arrow-2" aria-hidden="true"></div>
-            <button class="flow-node announce" type="button" data-node="announce_tool" aria-haspopup="dialog">
-              <strong>announce_tool</strong>
-              <small>Tool-Aufruf protokollieren</small>
-            </button>
-            <div class="graph-arrow arrow-3" aria-hidden="true"></div>
-            <button class="flow-node tool run-tools" type="button" data-node="run_tools" aria-haspopup="dialog">
-              <strong>run_tools</strong>
-              <small>Rechner oder RAG-Suche</small>
-            </button>
-            <article class="branch-card left branch-tool">
-              <strong>Tool-Fehler / keine Quellen</strong>
-              <span>
-                Guard-Antwort →
-                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
-                → Chat-Ausgabe
-              </span>
-            </article>
-            <div class="graph-arrow arrow-4" aria-hidden="true"></div>
-            <button class="flow-node prepare" type="button" data-node="prepare_model_call" aria-haspopup="dialog">
-              <strong>prepare_model_call</strong>
-              <small>Prompt + Verlauf + Quellen</small>
-            </button>
-            <div class="graph-arrow arrow-5" aria-hidden="true"></div>
-            <button class="flow-node primary call" type="button" data-node="call_model" aria-haspopup="dialog">
-              <strong>call_model</strong>
-              <small>Ollama · streamt Text live ins Chatfenster</small>
-            </button>
-            <div class="graph-arrow arrow-6" aria-hidden="true"></div>
-            <button class="flow-node record" type="button" data-node="record_model_response" aria-haspopup="dialog">
-              <strong>record_model_response</strong>
-              <small>Textantwort oder Tool-Aufruf?</small>
-            </button>
-            <div class="loop-lane">
-              <span class="loop-entry" aria-hidden="true"></span>
-              <strong>LOOP · NUR BEI TOOL-CALL</strong>
-              <span class="loop-arrow" aria-hidden="true">↶</span>
-              <small>record_model_response<br />→ announce_tool<br />max. 3 Tool-Aufrufe</small>
-            </div>
-            <div class="graph-arrow arrow-7" aria-hidden="true"></div>
-            <button class="flow-node validate" type="button" data-node="validate_final" aria-haspopup="dialog">
-              <strong>validate_final</strong>
-              <small>Nach Stream: Tools + Quellen prüfen</small>
-            </button>
-            <article class="branch-card left branch-evidence">
-              <strong>Nachweis unzureichend</strong>
-              <span>
-                Guard-Antwort →
-                <button class="guard-link" type="button" data-node="finalize_guarded_reply" aria-haspopup="dialog">finalize_guarded_reply</button>
-                → Chat-Ausgabe
-              </span>
-            </article>
-            <div class="graph-arrow arrow-8" aria-hidden="true"></div>
-            <div class="chat-output">
-              <strong>Antwort im Chat</strong>
-              <span>
-                Text wird schon in <b>call_model</b> gestreamt. Nach
-                <b>validate_final</b> ersetzt das finale Event den Stream mit
-                der geprüften Antwort; bei fehlendem Nachweis ersetzt die
-                Guard-Antwort den Stream. Guard-Antworten kommen ebenfalls hier an.
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="legend" aria-label="Legende">
-          <span><i></i>Agent-Schritt</span>
-          <span><i class="tool-key"></i>Tool</span>
-          <span><i class="guard-key"></i>Guard / Abbruch</span>
-          <span><i class="interactive-key"></i>Node anklicken</span>
+          <img
+            class="agent-flowchart"
+            src="agent_flowchart.png"
+            alt="Agent-Graph: START führt zu Plan und Execute Plan Step. Der Tool Pool enthält Calculate und Search Knowledge Base; beide können zurück zu Plan führen. Danach folgen Finalize / Answer und END."
+          />
         </div>
 
         <footer class="slide-footer">
@@ -1276,19 +1327,6 @@
       </section>
     </main>
 
-    <dialog class="node-dialog" id="node-dialog" aria-labelledby="node-dialog-title">
-      <div class="node-dialog-content">
-        <div class="node-dialog-header">
-          <div>
-            <p class="eyebrow" id="node-dialog-category">Graph-Node</p>
-            <h2 id="node-dialog-title"></h2>
-          </div>
-          <button class="node-dialog-close" type="button" aria-label="Details schließen">×</button>
-        </div>
-        <p id="node-dialog-description"></p>
-      </div>
-    </dialog>
-
     <nav class="dots" aria-label="Folienauswahl">
       <button type="button" aria-label="Folie 1" aria-current="true"></button>
       <button type="button" aria-label="Folie 2" aria-current="false"></button>
@@ -1307,53 +1345,6 @@
       const counter = document.querySelector("#counter");
       const previous = document.querySelector("#previous");
       const next = document.querySelector("#next");
-      const nodeDialog = document.querySelector("#node-dialog");
-      const nodeDialogTitle = document.querySelector("#node-dialog-title");
-      const nodeDialogCategory = document.querySelector("#node-dialog-category");
-      const nodeDialogDescription = document.querySelector("#node-dialog-description");
-      const closeNodeDialog = document.querySelector(".node-dialog-close");
-      const nodeDetails = {
-        route_request: {
-          category: "Routing",
-          description:
-            "Prüft die aktuelle Nachricht zusammen mit dem Gesprächsverlauf. Prozentrechnungen werden an calculate geleitet; zugelassene GKV-Fragen an die RAG-Suche. Nicht zugelassene Themen erhalten eine feste Scope-Antwort und überspringen das Modell.",
-        },
-        announce_tool: {
-          category: "Tool-Aufruf",
-          description:
-            "Erzeugt ein internes Trace-Event mit Toolname, Argumenten und Anlass. Danach führt der Graph run_tools aus.",
-        },
-        run_tools: {
-          category: "Tool-Ausführung",
-          description:
-            "Führt calculate oder search_knowledge_base aus. Bei einem Tool-Fehler oder einer Suche ohne Quellen endet der Modellpfad und der Guard gibt eine sichere finale Antwort aus. Eine erste vage Frage kann mit gefundenen RAG-Treffern eine Rückfrage erhalten.",
-        },
-        prepare_model_call: {
-          category: "Modellvorbereitung",
-          description:
-            "Baut die Modellnachrichten aus System-Prompt, Tool-Auswahl, Gesprächsverlauf und bisherigen Tool-Ergebnissen. Nach einer RAG-Suche werden zusätzlich RAG-Regeln und die gefundenen Dokumente eingebunden.",
-        },
-        call_model: {
-          category: "Sprachmodell",
-          description:
-            "Ruft das lokale Ollama-Modell mit den erlaubten Tools auf. Antworttokens werden während der Generierung direkt an den Chat gestreamt – also bevor record_model_response und validate_final abgeschlossen sind.",
-        },
-        record_model_response: {
-          category: "Antwort-Routing",
-          description:
-            "Bricht bei leerer oder abgeschnittener Ausgabe ab. Wenn das Modell weitere Tools anfordert, geht der Graph zurück zu announce_tool. Bei normalem Antworttext geht es weiter zu validate_final.",
-        },
-        validate_final: {
-          category: "Quellen- und Tool-Prüfung",
-          description:
-            "Prüft nach dem Streaming, ob mindestens ein Tool erfolgreich war und ob jede Wissenssuche Quellen mit Dokumentmetadaten geliefert hat. Danach wird ein finales Event gesendet: Es ersetzt die gestreamte Antwort im Chat oder liefert bei fehlendem Nachweis die sichere Guard-Antwort.",
-        },
-        finalize_guarded_reply: {
-          category: "Sicherer Abschluss",
-          description:
-            "Beendet Scope-, Rückfrage- oder Tool-/Quellenfehler-Pfade mit der festgelegten finalen Antwort. Diese Guard-Antwort wird als finales Event im Chat angezeigt und nicht tokenweise gestreamt.",
-        },
-      };
       let current = 0;
 
       function showSlide(index) {
@@ -1376,20 +1367,6 @@
       dots.forEach((dot, index) =>
         dot.addEventListener("click", () => showSlide(index)),
       );
-      document.querySelectorAll("[data-node]").forEach((node) => {
-        node.addEventListener("click", () => {
-          const detail = nodeDetails[node.dataset.node];
-          if (!detail) return;
-          nodeDialogTitle.textContent = node.dataset.node;
-          nodeDialogCategory.textContent = detail.category;
-          nodeDialogDescription.textContent = detail.description;
-          nodeDialog.showModal();
-        });
-      });
-      closeNodeDialog.addEventListener("click", () => nodeDialog.close());
-      nodeDialog.addEventListener("click", (event) => {
-        if (event.target === nodeDialog) nodeDialog.close();
-      });
       document.addEventListener("keydown", (event) => {
         if (event.key === "ArrowRight" || event.key === "PageDown") {
           showSlide(current + 1);

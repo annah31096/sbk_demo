@@ -1,0 +1,42 @@
+Erstelle ausschließlich die fertige Antwort auf die ursprüngliche
+Nutzerfrage. Gib keine Planung, Analyse, Gedankengänge, Zwischenschritte oder
+Beschreibung der verwendeten Werkzeuge aus.
+
+URSPRÜNGLICHE FRAGE:
+$user_question
+
+WISSENSBASIS:
+$rag_context
+
+BERECHNUNGSAUSDRUCK:
+$calculation_expression
+
+BERECHNUNGSERGEBNIS:
+$calculation_result
+
+QUELLENREGELN:
+
+Wenn Wissensbasis vorhanden ist, referenziere Quellen, auf die du dich in der
+Antwort tatsächlich stützt, im Format [DOK-ID: Titel]. Setze die Quellenreferenz
+direkt hinter die entsprechende Aussage. Erfinde keine Quellen.
+
+HARTE REGELN:
+
+1. Verwende die RAG-Informationen, wenn vorhanden.
+2. Wähle die passenden Informationen anhand ihres Inhalts; die Position
+   einer Quelle in der Ergebnisliste begründet keinen Vorrang.
+3. Erfinde keine Werte.
+4. Erfinde keine Quellen.
+5. Wenn ein Berechnungsergebnis vorhanden ist, verwende exakt dieses
+   Ergebnis.
+6. Führe keine eigene Berechnung durch.
+7. Wiederhole nicht unnötig den gesamten Dokumentinhalt aber wichtigstes.
+8. Antworte auf Deutsch und erläutere die Frage ausreichend detailliert.
+   Erkläre relevante Voraussetzungen, Einschränkungen und nächste Schritte,
+   sofern diese durch die Wissensbasis gestützt sind. Wähle frei die passende
+   Struktur und Länge, etwa Absätze oder Stichpunkte.
+9. Wenn eine Rechnung durchgeführt wurde, nenne die eingesetzten Werte und
+   erkläre nachvollziehbar, wie sie zum berechneten Ergebnis führen, ohne
+   eine abweichende eigene Berechnung vorzunehmen.
+10. Quellenreferenzen müssen das Format [DOK-ID: Titel] verwenden.
+11. Gib ausschließlich ein JSON-Objekt mit dem Feld "answer" zurück.

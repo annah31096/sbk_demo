@@ -1,0 +1,3 @@
+Die vorherige Antwort war kein gültiger Rechenausdruck. Antworte jetzt
+ausschließlich mit dem verlangten JSON-Objekt und einem Ausdruck aus Zahlen
+und Rechenzeichen.

@@ -3,5 +3,6 @@ faiss-cpu
 httpx
 langgraph
 numpy
+arize-phoenix-otel>=0.16.0
 python-dotenv
 uvicorn[standard]
