@@ -44,6 +44,8 @@ npm install
 
 Anpassbare Einstellungen können in `backend/.env` und `backend/config.py` vorgenommen werden.
 
+> Demo .md Files müssen selbst abgelegt werden. Der entsprechende Pfad kann über DEFAULT_KNOWLEDGE_DIRECTORY in der config.py gesetzt werden.
+
 ## Starten
 
 Jeden Dienst in einem eigenen Terminal starten.
